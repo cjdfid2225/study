@@ -1,0 +1,308 @@
+DELETE stations
+GET stations/_mapping
+GET stations/_search
+
+PUT stations/_bulk
+{"index": {"_id": "1"}}
+{"station" : "홍대입구"}
+{"index": {"_id": "2"}}
+{"station" : "서울대입구"}
+{"index": {"_id": "3"}}
+{"station" : "총신대입구(이수)"}
+{"index": {"_id": "4"}}
+{"station" : "충정로(경기대입구)"}
+{"index": {"_id": "5"}}
+{"station" : "성신여대입구(돈암)"}
+{"index": {"_id": "6"}}
+{"station" : "숭실대입구(살피재)"}
+{"index": {"_id": "7"}}
+{"station" : "청량리(서울시립대입구)"}
+{"index": {"_id": "8"}}
+{"station" : "한성대입구"}
+{"index": {"_id": "9"}}
+{"station" : "숙대입구"}
+{"index": {"_id": "10"}}
+{"station" : "남한산성입구"}
+
+PUT stations
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "nori": {
+          "tokenizer" : "nori_tokenizer"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "station" : {
+        "type" : "text",
+        "fields" : {
+         "nori" : {
+           "type" : "text",
+           "analyzer" : "nori"
+         }
+        }
+      }
+    }
+  }
+}
+
+
+GET stations/_termvectors/1?fields=station.nori
+GET stations/_termvectors/10?fields=station.nori
+
+GET stations/_search
+{ 
+  "query": {
+    "match": {
+      "station.nori": "입구"
+    }
+  }
+}
+# 질문! 왜 '입구'가 들어간 단어들끼리 점수 차이가 나는가?
+# 형태소분석이 되었을 때 형태소1+형태소2 이 나와서 그 중 하나가 "입구"일 때와, 형태소1+형태소2+형태소3 이 나와서 그 중 하나가 "입구"일 때. 후자가 더 점수가 낮다.
+
+
+GET stations/_search
+{
+  "query": {
+    "match_phrase": {
+      "station.nori" : "홍대입구"
+    }
+  }
+}
+# match : 형태소1+형태소2 의 텍스트이면, 구성형태소를 하나라도 가지고 있는 텍스트는 모두 출력한다.
+# match_phrase : 형태소1+형태소2 의 텍스트더라도, 그 전체 텍스트를 모두 가지고 있는 명사구(phrase)만을 출력한다.
+
+
+GET _analyze
+{ 
+  "tokenizer": "standard",
+  "text": [
+    "동해물과 백두산이"
+  ]
+}
+# 일반적(standard)으로는 띄어쓰기와 특수문자만 구분
+
+GET _analyze
+{ 
+  "tokenizer": "nori_tokenizer",
+  "text": [
+    "동해물과 백두산이"
+  ]
+}
+
+
+PUT my_nori2
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "my_nori_tokenizer" : {
+          "type" : "nori_tokenizer",
+          "user_dictionary_rules" : [
+            "해물"
+          ]
+        }
+      }
+    }
+  }
+}
+#직접 룰을 설정(하나의 fix된 단어형태를 설정하고, 이를 우선시)
+
+GET my_nori2/_analyze
+{
+  "tokenizer": "my_nori_tokenizer",
+  "text" : [
+    "동해물과"
+  ]
+}
+
+
+PUT my_nori3
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "nori_none" : {
+          "type" : "nori_tokenizer",
+          "decompound_mode" : "none"
+        },
+        "nori_discard" : {
+          "type" : "nori_tokenizer",
+          "decompound_mode" : "discard"
+        },
+        "nori_mixed" : {
+          "type" : "nori_tokenizer",
+          "decompound_mode" : "mixed"
+        }
+      }
+    }
+  }
+}
+
+GET my_nori3/_analyze
+{
+  "tokenizer": "nori_none",
+  "text" : [
+    "동해물과 백두산이"
+  ]
+}
+# nori_none : 가장 큰 단위로(백두산). 명사 중심으로 추출
+
+GET my_nori3/_analyze
+{
+  "tokenizer": "nori_discard",
+  "text" : [
+    "동해물과 백두산이"
+  ]
+}
+# nori_discard : 최소 단어로 다 쪼개어 구분(백두/산). 디테일한 분석 가능
+
+GET my_nori3/_analyze
+{
+  "tokenizer": "nori_mixed",
+  "text" : [
+    "동해물과 백두산이"
+  ]
+}
+# nori_mixed : 큰 단위, 작은 단위 둘 다 출력(백두산/백두/산)
+# 물론 사전에 있는 경우에만!('동해물'은 사전에 없어서 중복출력x)
+
+
+PUT my_pos 
+{
+  "settings": {
+    "index" : {
+      "analysis" : {
+        "filter" : {
+          "my_pos_f" : {
+            "type" : "nori_part_of_speech",
+            "stoptags" : [
+              "NR"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# filter : 토큰화가 끝난 후의 과정
+# stoptags : 설정한 품사 제거
+# NR : 수사 ('꼬꼬마 한글 형태소 분석기' 참고)
+
+GET my_pos/_analyze
+{
+  "tokenizer": "nori_tokenizer",
+  "filter" : [
+    "my_pos_f"
+  ],
+  "text": "다섯아이가"
+}
+# "explain":true 넣어주면 출력결과에 대한 품사 설명o
+
+
+GET _analyze
+{
+  "tokenizer": "nori_tokenizer",
+  "filter": [
+    "nori_readingform"
+  ],
+  "text": "春夏秋冬"
+}
+# nori_readingform : 한자텍스트의 음을 읽어주는 필터
+
+
+
+#배운 nori_tokenizer의 옵션들을 가지고 앞에서 했던 station을 이리저리 조작해보자
+PUT stations
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "nori_none": {
+          "tokenizer" : "nori_t_none"
+        },
+        "nori_discard": {
+          "tokenizer": "nori_t_discard"
+        },
+        "nori_mixed": {
+          "tokenizer": "nori_t_mixed"
+        }
+      },
+      "tokenizer": {
+        "nori_t_none":{
+          "type": "nori_tokenizer",
+          "decompound_mode": "none"
+        },
+        "nori_t_discard":{
+          "type": "nori_tokenizer",
+          "decompound_mode": "discard"
+        },
+        "nori_t_mixed":{
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "station" : {
+        "type" : "text",
+        "fields" : {
+         "nori_none" : {
+           "type" : "text",
+           "analyzer" : "nori_none",
+           "search_analyzer" : "standard"
+         },
+          "nori_discard" : {
+           "type" : "text",
+           "analyzer" : "nori_discard",
+           "search_analyzer" : "standard"
+         },
+          "nori_mixed" : {
+           "type" : "text",
+           "analyzer" : "nori_mixed",
+           "search_analyzer" : "standard"
+         }
+        }
+      }
+    }
+  }
+}
+# setting - tokenizer 밑에 "max_shingle_size" : 3라는 filter를 입력시 쪼개진 형태소를 3개까지 묶은 단어들도 출력한다. ngram(독특한 토큰화방식)
+
+GET stations/_termvectors/2?fields=station.nori_none
+GET stations/_termvectors/2?fields=station.nori_discard
+GET stations/_termvectors/2?fields=station.nori_mixed
+
+GET stations/_search
+{
+  "query": {
+    "match": {
+      "station.nori_none": "서울"
+    }
+  }
+}
+
+GET stations/_search
+{
+  "query": {
+    "match": {
+      "station.nori_discard": "서울"
+    }
+  }
+}
+
+GET stations/_search
+{
+  "query": {
+    "match": {
+      "station.nori_mixed": "서울"
+    }
+  }
+}
