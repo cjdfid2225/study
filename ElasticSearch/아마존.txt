@@ -1,5 +1,3 @@
-#elastic ver.
-
 GET /amazon_products2/_search
 {
   "from" : 0,
