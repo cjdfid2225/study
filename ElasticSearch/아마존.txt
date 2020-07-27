@@ -1,0 +1,241 @@
+#elastic ver.
+
+GET /amazon_products2/_search
+{
+  "from" : 0,
+  "size" : 10, 
+  "query": {
+    "range": {
+      "price": {
+        "gte": 10,
+        "lte": 20,
+        "boost": 2.2
+      }
+    }
+  }
+}
+
+GET amazon_products2/_search
+GET amazon_products2/_mapping
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "exists": {
+      "field": "description"
+    }
+  }
+}
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "term": {
+      "manufacturer.raw" : "victory multimedia"
+    }
+  }
+}
+
+# term은 키워드(a.keyword) 타입에서 쓰고 / match는 텍스트(a) 타입에서 쓴다!!
+
+#텍스트는 역색인과정(데이터를 뽑아내 토큰화해서 역색인화)o / 키워드는 역색인과정x
+#토큰화 : standard, white_space 등 
+#문장이 짧고 반복적으로 사용 > 키워드 
+#문장이 길고 반복적 사용이 힘들다 > 텍스트
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "match": {
+      "manufacturer" : "victory multimedia"
+    }
+  }
+}
+# 상위 score를 가진 게 먼저 출력이 된다.
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "match": {
+      "manufacturer" : {
+        "query" : "victory multimedia",
+        "operator" : "and"
+      }
+    }
+  }
+}
+
+#"query" : "victory multimedia" 자체가 or 조건이라 굳이 "operator" : "or"은 하지 않는다.
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "match_phrase": {
+      "description" : {
+        "query" : "real video saltware aquarium"
+      }
+    }
+  }
+}
+# match_phrase : 특정 구문 검색
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "match_phrase": {
+      "description" : {
+        "query" : "real video",
+        "slop": 5
+      }
+    }
+  }
+}
+# match_phrase에 slop 옵션을 넣어주면 단어와 단어 사이 slop수만큼 단어가 들어가도 검색이 된다. (사이 단어수 적은게 우선적으로 뜸)
+
+GET /amazon_products2/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "monitor aquarium",
+      "fields": [
+        "title^5",
+        "description"
+        ] 
+    }
+  }
+}
+# multi_match : field 2개를 정할 수 있다.(배열형태로) field에 query가 포함되어 있느냐 아니냐로 결과 출력. 
+# a^5 : a에 5만큼의 가중치 부여
+
+
+
+
+GET /amazon_products2/_search
+{
+  "query": { 
+    "constant_score": {
+      "filter": {
+        "bool": { 
+          "should" : [
+            {
+              "range" : {
+                "price" : {
+                  "gte" : 10,
+                  "lte" : 13
+                }
+              }
+            },
+            {
+              "term" : {
+                "manufacturer.raw" : {
+                  "value" : "valuesoft"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+# "bool" : 조건을 중복으로 처리할 때 사용
+# < bool 하에서의 조건 설정하기 위한 함수들 >
+# must : and 조건으로 검색 
+# should : or 조건으로 검색
+# must_not : not equal(and반대) 조건으로 검색
+# filter : MySQL에서의 in과 같은 기능. 
+# must, should, must_not, filter 모두 [] 형태로 쓴다. 조건수는 1개든 여러개든 상관x
+
+POST /amazon_products2/_search
+{
+  "query": {
+    "query_string": {
+      "default_field": "title",
+      "query": "(adobe) AND (cs3)"
+    }
+  }
+}
+# query_string : title에 adobe와 cs3 둘 다가 있는 애를 잡아준다.
+
+GET /amazon_products2/_search
+{
+  "aggs": {
+    "call_sum" : {
+      "sum" : {
+        "field" : "price"
+      }
+    }
+  },
+  "size": 0
+}
+# 'sum' 자리에 'avg','min','max'함수도 넣을 수 있다.
+# 'stats'함수를 넣으면 기초통계량('count','sum','avg','min','max') 다 보여준다.
+
+GET /amazon_products2/_search
+{
+  "aggs" : {
+    "call_stats" : {
+      "extended_stats": {
+        "field" : "price"
+      }
+    }
+  },
+  "size": 0
+}
+# extended_stats : 확장된 통계량 출력
+
+GET /amazon_products2/_search
+{
+  "aggs" : {
+    "call_123" : {
+      "cardinality": {
+        "field" : "manufacturer.raw"
+      }
+    }
+  },
+  "size": 0
+}
+# cardinality : 총개수 (키워드를 써야지 텍스트를 쓰면 인식x)
+
+GET /amazon_products2/_search
+{
+  "aggs" : {
+    "call_123" : {
+      "terms": {
+        "field" : "manufacturer.raw",
+        "size": 20
+      }
+    }
+  },
+  "size": 0
+}
+
+GET /amazon_products2/_search
+{
+  "aggs" : {
+    "call_123" : {
+      "histogram": {
+        "field" : "price",
+        "interval": 10000
+      }
+    }
+  },
+  "size": 0
+}
+
+GET /amazon_products2/_search
+{
+  "aggs" : {
+    "call_123" : {
+      "range": {
+        "field" : "price",
+        "ranges": [
+          {"from": 100, "to": 50}
+        ]
+      }
+    }
+  },
+  "size": 0
+}
+# 특정 범위 개수만 구하고 싶을 때 : range함수
+# {"to" : 50},{"from": 100} 이렇게 나눠써도 된다. 근데 이러면 to따로 from따로 출력됨
